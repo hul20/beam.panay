@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Iloilo3D synthetic test fixture; NOT real geography">
+  <node id="1" lat="10.6950" lon="122.5680"/>
+  <node id="2" lat="10.6950" lon="122.5685"/>
+  <node id="3" lat="10.6950" lon="122.5690"/>
+  <node id="4" lat="10.6956" lon="122.5685"/>
+  <node id="10" lat="10.6952" lon="122.5680"/>
+  <node id="11" lat="10.6952" lon="122.5682"/>
+  <node id="12" lat="10.6954" lon="122.5682"/>
+  <node id="13" lat="10.6954" lon="122.5680"/>
+  <node id="20" lat="10.6953" lon="122.5687"/>
+  <node id="21" lat="10.6953" lon="122.5691"/>
+  <node id="22" lat="10.6957" lon="122.5691"/>
+  <node id="23" lat="10.6957" lon="122.5687"/>
+  <node id="30" lat="10.6954" lon="122.5688"/>
+  <node id="31" lat="10.6954" lon="122.5690"/>
+  <node id="32" lat="10.6956" lon="122.5690"/>
+  <node id="33" lat="10.6956" lon="122.5688"/>
+  <way id="100" version="2" timestamp="2026-01-01T00:00:00Z">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/>
+    <tag k="highway" v="residential"/><tag k="name" v="Synthetic Street"/>
+    <tag k="width" v="6 m"/><tag k="lanes" v="2"/><tag k="oneway" v="-1"/>
+  </way>
+  <way id="101"><nd ref="2"/><nd ref="4"/>
+    <tag k="highway" v="residential"/><tag k="surface" v="concrete"/>
+  </way>
+  <way id="200" version="3" timestamp="2026-01-01T00:00:00Z">
+    <nd ref="10"/><nd ref="11"/><nd ref="12"/><nd ref="13"/><nd ref="10"/>
+    <tag k="building" v="house"/><tag k="height" v="8 m"/><tag k="building:levels" v="2"/>
+  </way>
+  <way id="201"><nd ref="20"/><nd ref="21"/><nd ref="22"/><nd ref="23"/><nd ref="20"/>
+    <tag k="building" v="yes"/>
+  </way>
+  <way id="202"><nd ref="30"/><nd ref="31"/><nd ref="32"/><nd ref="33"/><nd ref="30"/></way>
+  <relation id="300" version="1">
+    <member type="way" ref="201" role="outer"/><member type="way" ref="202" role="inner"/>
+    <tag k="type" v="multipolygon"/><tag k="building" v="commercial"/>
+  </relation>
+</osm>
+

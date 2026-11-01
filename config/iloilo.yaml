@@ -1,0 +1,19 @@
+# Approx. 250 m square in City Proper. This is a configurable starting area.
+region:
+  name: Iloilo City Proper prototype
+  origin:
+    longitude: 122.5685
+    latitude: 10.6952
+    elevation_m: 0
+  size_m: 250
+  projected_crs: EPSG:32651
+  elevation_datum: unknown; origin Z is a simulation reference, not measured terrain
+  # To override size_m: bbox: {west: ..., south: ..., east: ..., north: ...}
+data_dir: ../data
+acquisition:
+  endpoint: https://overpass-api.de/api/interpreter
+  timeout_seconds: 90
+  max_area_km2: 1
+  max_download_mb: 32
+  minimum_interval_seconds: 2
+
