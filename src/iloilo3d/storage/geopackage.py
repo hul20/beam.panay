@@ -17,11 +17,12 @@ LOCAL_CRS = CRS.from_wkt(
 
 
 def write_geopackage(dataset: GeographicDataset, path: Path) -> None:
-    """Create six layers, including typed empty layers when source features are absent."""
+    """Create nine layers, retaining empty layers when source features are absent."""
     frame = CoordinateFrame(dataset.origin, dataset.projected_crs)
     for kind, objects, geometry_key in (
         ("buildings", dataset.buildings, "footprint"),
         ("roads", dataset.roads, "centerline"),
+        ("public_spaces", dataset.public_spaces, "geometry"),
     ):
         rows = []
         geometries = []

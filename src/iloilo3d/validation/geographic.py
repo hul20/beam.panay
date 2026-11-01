@@ -38,6 +38,7 @@ def validate_dataset(dataset: GeographicDataset) -> ValidationReport:
     return ValidationReport(
         valid=not errors,
         counts={
+            "public_spaces": len(dataset.public_spaces),
             "buildings": len(dataset.buildings),
             "road_segments": len(dataset.roads),
             "drivable_components": components,

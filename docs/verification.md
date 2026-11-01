@@ -1,5 +1,9 @@
 # Initial milestone verification
 
+Historical first-milestone record. See the [Jaro Plaza verification](jaro_plaza.md) for the
+current 47-test suite and new export. The user subsequently reported that the initial map
+loads, while noting flat ground and building/road overlaps; full in-game acceptance remains open.
+
 Verified on **2026-11-02, Asia/Taipei**, in Windows PowerShell. This is an execution
 record, not a claim that every feature in the project specification is complete.
 

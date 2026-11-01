@@ -13,11 +13,13 @@ from pathlib import Path
 from defusedxml import ElementTree as SafeET
 from shapely import set_precision, union_all
 from shapely.affinity import translate
-from shapely.geometry import Polygon, box, shape
+from shapely.geometry import Polygon, box
 
 from iloilo3d.errors import PipelineError
 from iloilo3d.exporters.collada import NAMESPACE, write_collada
-from iloilo3d.generation.meshes import Mesh, extrude
+from iloilo3d.generation.buildings import building_profile
+from iloilo3d.generation.meshes import Mesh, extrude, extrude_test_surface
+from iloilo3d.generation.roads import prepare_surfaces
 from iloilo3d.geospatial.coordinates import CoordinateFrame
 from iloilo3d.geospatial.preview import write_png_preview
 from iloilo3d.models import GeographicDataset
@@ -84,43 +86,29 @@ def export_prototype(
         "Collision uses low-poly visible meshes; actual wheel contact is unverified.",
         "No textures, detailed facades, LODs, road markings, AI lanes, or photogrammetry.",
     ]
-    roads = []
-    road_records = []
-    for road in dataset.roads:
-        if not road.drivable_candidate:
-            continue
-        if (
-            road.tags.get("bridge", "no") != "no"
-            or road.tags.get("tunnel", "no") != "no"
-            or road.tags.get("layer", "0") != "0"
-        ):
-            notes.append(f"Skipped elevated/below-grade road {road.id}; needs elevation data")
-            continue
-        centerline = frame.local_geometry(shape(road.centerline)).intersection(boundary)
-        width = road.width_m or fallback_width_m
-        surface = centerline.buffer(width / 2, cap_style="flat", join_style="round").intersection(
-            boundary
-        )
-        if not surface.is_empty:
-            roads.append(surface)
-            road_records.append(
-                {
-                    "source_id": road.id,
-                    "width_m": width,
-                    "width_status": "mapped" if road.width_m else "estimated",
-                }
-            )
-    if not roads or not dataset.buildings:
+    layout = prepare_surfaces(dataset, frame, boundary, fallback_width_m, fallback_height_m)
+    road_surface = layout.roads
+    road_records = layout.records
+    if road_surface.is_empty or not dataset.buildings:
         raise PipelineError("Prototype requires at least one mapped building and drivable road")
-    road_surface = set_precision(union_all(roads), 0.001)
+    if layout.overlap_area_m2 > 1e-6:
+        raise PipelineError("Generated road surface still overlaps a building")
+    notes.extend(f"Skipped elevated/below-grade road {identifier}" for identifier in layout.skipped)
+    notes.append("Road/path surfaces trim around unchanged footprints with 0.25 m test clearance.")
+    notes.append("Trimmed widths are not measurements; centerline conflicts need alignment review.")
+    notes.append(
+        "Public-space boundaries and paths are mapped; colors and surface elevations estimated."
+    )
     notes.append(
         "Generated test pad and road surfaces snap to a 1 mm grid to remove clipping slivers."
     )
-    building_shapes = [
-        frame.local_geometry(shape(building.footprint)) for building in dataset.buildings
-    ]
+    building_shapes = layout.buildings
+    notes.append(
+        "Mapped building=roof features are overhead slabs; column locations remain unknown."
+    )
+    notes.append("Some test surfaces inset 2 mm to open pinches; inspect tiny seams in-game.")
     # At least 3 m of clearance from road edges and building walls for a starting vehicle.
-    safe_spawn = road_surface.buffer(-2.5).difference(union_all(building_shapes).buffer(3))
+    safe_spawn = road_surface.buffer(-2.5).difference(union_all(layout.ground_obstacles).buffer(3))
     if safe_spawn.is_empty:
         raise PipelineError(
             "No safe spawn area with vehicle clearance; inspect road widths/buildings"
@@ -179,6 +167,9 @@ def export_prototype(
             "iloilo_wall": [0.69, 0.65, 0.55, 1],
             "iloilo_road": [0.25, 0.26, 0.27, 1],
             "iloilo_ground": [0.43, 0.45, 0.36, 1],
+            "iloilo_park": [0.26, 0.40, 0.18, 1],
+            "iloilo_path": [0.68, 0.65, 0.57, 1],
+            "iloilo_pitch": [0.47, 0.48, 0.46, 1],
         }
         materials = {
             name: {
@@ -229,36 +220,48 @@ def export_prototype(
                 {"name": name, "material": material, "position": position, **asdict(mesh)}
             )
 
+        covered = union_all([road_surface, layout.paths, layout.parks, layout.pitches])
         for kind, geometry, material in (
-            ("ground", boundary.difference(road_surface), "iloilo_ground"),
+            ("ground", boundary.difference(covered), "iloilo_ground"),
             ("road", road_surface, "iloilo_road"),
+            ("path", layout.paths, "iloilo_path"),
+            ("park", layout.parks, "iloilo_park"),
+            ("pitch", layout.pitches, "iloilo_pitch"),
         ):
             for index, poly in enumerate(polygons(geometry)):
-                add_mesh(
-                    f"{kind}_{index}",
-                    extrude(poly, -0.5, 0),
-                    material,
-                    [0, 0, 0],
-                    {"surface_elevation_status": "estimated_test_surface"},
-                )
+                for part, (mesh, inset) in enumerate(extrude_test_surface(poly)):
+                    add_mesh(
+                        f"{kind}_{index}_{part}",
+                        mesh,
+                        material,
+                        [0, 0, 0],
+                        {
+                            "surface_elevation_status": "estimated_test_surface",
+                            "pinch_repair_inset_m": inset,
+                        },
+                    )
         for building, geometry in zip(dataset.buildings, building_shapes, strict=True):
-            height = building.height_m or (
-                building.floors * 3 if building.floors else fallback_height_m
-            )
+            profile = building_profile(building, fallback_height_m)
+            height = profile.top
             for index, poly in enumerate(polygons(geometry)):
                 center = poly.centroid
                 local = translate(poly, xoff=-center.x, yoff=-center.y)
                 name = building.id.replace("/", "_") + f"_{index}"
                 add_mesh(
                     name,
-                    extrude(local, 0, height),
+                    extrude(local, profile.bottom, height),
                     "iloilo_wall",
                     [center.x, center.y, 0],
                     {
                         "source_id": building.id,
+                        "name": building.tags.get("name"),
+                        "building_class": building.tags.get("building"),
                         "reconstruction_method": "C",
                         "height_m": height,
                         "height_status": "mapped" if building.height_m else "estimated",
+                        "open_roof": profile.open_roof,
+                        "min_height_m": profile.bottom,
+                        "min_height_status": profile.bottom_status,
                         "roof_status": "estimated_flat",
                         "base_elevation_status": "estimated_test_surface",
                     },
@@ -266,7 +269,7 @@ def export_prototype(
         write_scene(mission / "generated" / "items.level.json", scene)
         info = json.loads(template["info"])
         info.update(
-            title="Iloilo3D — geographic test prototype",
+            title=f"Iloilo3D — {dataset.region_name}",
             description="Real OSM footprints; estimated building masses on a flat test pad.",
             authors="Iloilo3D; OpenStreetMap contributors; BeamNG template",
             isAuxiliary=False,
@@ -300,10 +303,17 @@ def export_prototype(
             "notes": notes,
             "assets": assets,
             "roads": road_records,
+            "public_spaces": [space.model_dump(mode="json") for space in dataset.public_spaces],
+            "overlap_checks": {
+                "road_building_overlap_m2": layout.overlap_area_m2,
+                "trimmed_segments": sum(r["surface_correction"] != "none" for r in road_records),
+                "centerline_conflicts": sum(r["requires_alignment_review"] for r in road_records),
+                "warning": "Clipped road edges may be narrow; driveability is not certified.",
+            },
             "performance": {
                 "mesh_count": len(assets),
                 "triangle_count": sum(a["triangles"] for a in assets),
-                "material_count": 3,
+                "material_count": len(materials),
                 "texture_count": 0,
                 "estimated_texture_bytes": 0,
                 "scene_object_count": len(scene) + len(root) + len(groups) + len(sky) + 1,

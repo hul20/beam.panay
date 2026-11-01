@@ -14,7 +14,7 @@ pytestmark = pytest.mark.integration
 def test_offline_job_geopackage_preview_and_restart(config, osm_file) -> None:
     directory = fetch_geodata(config, osm_file=osm_file, synthetic=True)
     layers = pyogrio.list_layers(directory / "geodata.gpkg")
-    assert len(layers) == 6
+    assert len(layers) == 9
     local = gpd.read_file(directory / "geodata.gpkg", layer="buildings_local")
     projected = gpd.read_file(directory / "geodata.gpkg", layer="buildings_projected")
     assert local.crs.is_engineering
@@ -38,7 +38,7 @@ def test_empty_geopackage_layers(config, tmp_path) -> None:
     path = tmp_path / "empty.osm"
     path.write_text('<osm version="0.6" generator="synthetic"/>')
     directory = fetch_geodata(config, osm_file=path, synthetic=True)
-    assert len(pyogrio.list_layers(directory / "geodata.gpkg")) == 6
+    assert len(pyogrio.list_layers(directory / "geodata.gpkg")) == 9
     assert gpd.read_file(directory / "geodata.gpkg", layer="roads_local").empty
 
 

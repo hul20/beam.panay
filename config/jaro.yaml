@@ -1,0 +1,18 @@
+# Jaro Plaza and its immediate surrounding streets; roughly 400 m square.
+# Center is a geographic selection anchor, not a surveyed control point.
+region:
+  name: Jaro Plaza
+  origin:
+    longitude: 122.5573278
+    latitude: 10.7243667
+    elevation_m: 0
+  size_m: 400
+  projected_crs: EPSG:32651
+  elevation_datum: unknown; test surface only, no measured terrain
+data_dir: ../data/jaro
+acquisition:
+  endpoint: https://overpass-api.de/api/interpreter
+  timeout_seconds: 90
+  max_area_km2: 1
+  max_download_mb: 32
+  minimum_interval_seconds: 2

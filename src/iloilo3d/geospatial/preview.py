@@ -25,13 +25,25 @@ def write_preview(dataset: GeographicDataset, path: Path) -> None:
         '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="850" viewBox="0 0 800 850">',
         '<rect width="800" height="850" fill="#f5f3eb"/>',
         "<style>text{font-family:system-ui,sans-serif;fill:#173b3c}</style>",
-        '<text x="40" y="30" font-size="22">Iloilo3D · geographic extraction</text>',
+        f'<text x="40" y="30" font-size="22">Iloilo3D · {escape(dataset.region_name)}</text>',
         f'<text x="40" y="55" font-size="13">{len(dataset.buildings)} footprints · '
         f"{len(dataset.roads)} road segments · X east / Y north</text>",
         '<defs><clipPath id="area"><rect x="40" y="80" '
         f'width="{(xmax - xmin) * scale}" height="{(ymax - ymin) * scale}"/></clipPath></defs>',
         '<g clip-path="url(#area)">',
     ]
+    for space in dataset.public_spaces:
+        geometry = frame.local_geometry(shape(space.geometry))
+        parts = list(geometry.geoms) if geometry.geom_type == "MultiPolygon" else [geometry]
+        for poly in parts:
+            d = " ".join(
+                "M " + " L ".join(point(x, y) for x, y in ring.coords) + " Z"
+                for ring in [poly.exterior, *poly.interiors]
+            )
+            lines.append(
+                f'<path d="{d}" fill="#b9d49d" stroke="#6b8a52" fill-rule="evenodd">'
+                f"<title>{escape(space.tags.get('name', space.id))}</title></path>"
+            )
     for building in dataset.buildings:
         geometry = frame.local_geometry(shape(building.footprint))
         polygons = list(geometry.geoms) if geometry.geom_type == "MultiPolygon" else [geometry]
@@ -83,6 +95,15 @@ def write_png_preview(dataset: GeographicDataset, path: Path) -> None:
     def points(ring) -> list[tuple[float, float]]:
         return [(40 + (x - xmin) * scale, 70 + (ymax - y) * scale) for x, y in ring.coords]
 
+    for space in dataset.public_spaces:
+        geometry = frame.local_geometry(shape(space.geometry)).intersection(boundary)
+        parts = [geometry] if geometry.geom_type == "Polygon" else getattr(geometry, "geoms", [])
+        for poly in parts:
+            if poly.geom_type != "Polygon" or poly.is_empty:
+                continue
+            draw.polygon(points(poly.exterior), fill="#b9d49d", outline="#6b8a52")
+            for ring in poly.interiors:
+                draw.polygon(points(ring), fill="#f5f3eb")
     for building in dataset.buildings:
         geom = frame.local_geometry(shape(building.footprint)).intersection(boundary)
         parts = [geom] if geom.geom_type == "Polygon" else getattr(geom, "geoms", [])
@@ -98,7 +119,7 @@ def write_png_preview(dataset: GeographicDataset, path: Path) -> None:
         for line in lines:
             if line.geom_type == "LineString" and not line.is_empty:
                 draw.line(points(line), fill="#287c87", width=2)
-    draw.text((40, 20), "Iloilo3D | Geographic test prototype", fill="#173b3c", font_size=24)
+    draw.text((40, 20), "Iloilo3D | " + dataset.region_name, fill="#173b3c", font_size=24)
     draw.text(
         (40, 50), "N up | Road centerlines and mapped footprints", fill="#173b3c", font_size=14
     )

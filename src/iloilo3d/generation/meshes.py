@@ -38,8 +38,15 @@ class Mesh:
                 raise PipelineError(f"Degenerate triangle at {a}, {b}, {c}")
             for edge in ((face[0], face[1]), (face[1], face[2]), (face[2], face[0])):
                 edges[edge] = edges.get(edge, 0) + 1
-        if any(count != 1 or edges.get((b, a)) != 1 for (a, b), count in edges.items()):
-            raise PipelineError("Mesh is not a closed, consistently oriented manifold")
+        invalid_edges = [
+            (self.vertices[a], self.vertices[b])
+            for (a, b), count in edges.items()
+            if count != 1 or edges.get((b, a)) != 1
+        ]
+        if invalid_edges:
+            raise PipelineError(
+                f"Mesh is not a closed, consistently oriented manifold: {invalid_edges[:3]}"
+            )
 
 
 def extrude(polygon: Polygon, bottom: float, top: float) -> Mesh:
@@ -71,3 +78,19 @@ def extrude(polygon: Polygon, bottom: float, top: float) -> Mesh:
     mesh = Mesh(vertices, triangles)
     mesh.validate()
     return mesh
+
+
+def extrude_test_surface(polygon: Polygon) -> list[tuple[Mesh, float]]:
+    """Open point-touching pinches only when needed for a manifold test collider.
+
+    The returned inset is recorded in export provenance. Never apply this fallback
+    to original building footprints. A 2 mm inset can create tiny surface seams.
+    """
+    try:
+        return [(extrude(polygon, -0.5, 0), 0.0)]
+    except PipelineError:
+        repaired = polygon.buffer(-0.002, join_style="mitre")
+        if repaired.is_empty:
+            raise PipelineError("Test surface collapsed during 2 mm pinch repair") from None
+        pieces = list(repaired.geoms) if repaired.geom_type == "MultiPolygon" else [repaired]
+        return [(extrude(piece, -0.5, 0), 0.002) for piece in pieces]

@@ -99,6 +99,27 @@ class RoadSegment(Model):
         return self
 
 
+class PublicSpace(Model):
+    """Mapped polygon boundary, without implying surveyed material or elevation."""
+
+    id: str
+    geometry: dict
+    tags: dict[str, str]
+    source_version: str | None = None
+    source_timestamp: str | None = None
+
+    @model_validator(mode="after")
+    def valid_geometry(self) -> "PublicSpace":
+        geometry = shape(self.geometry)
+        if (
+            geometry.geom_type not in {"Polygon", "MultiPolygon"}
+            or geometry.is_empty
+            or not geometry.is_valid
+        ):
+            raise ValueError("Public space must have a valid polygon boundary")
+        return self
+
+
 class GeographicDataset(Model):
     schema_version: Literal[1] = 1
     source: SourceRecord
@@ -108,6 +129,8 @@ class GeographicDataset(Model):
     elevation_datum: str
     buildings: list[Building]
     roads: list[RoadSegment]
+    region_name: str = "Iloilo geographic prototype"
+    public_spaces: list[PublicSpace] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 

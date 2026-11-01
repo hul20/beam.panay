@@ -26,6 +26,7 @@ from iloilo3d.models import (
     Building,
     GeographicDataset,
     PropertyEvidence,
+    PublicSpace,
     RoadSegment,
     SourceRecord,
 )
@@ -73,7 +74,10 @@ def overpass_query(config: ProjectConfig) -> str:
     return (
         f"[out:xml][timeout:{config.acquisition.timeout_seconds}];"
         f'(way["building"]({bounds});relation["building"]["type"="multipolygon"]({bounds});'
-        f'way["highway"]({bounds}););(._;>;);out meta;'
+        f'way["highway"]({bounds});'
+        f'way["leisure"~"^(park|garden|pitch)$"]({bounds});'
+        f'relation["leisure"~"^(park|garden|pitch)$"]["type"="multipolygon"]({bounds});'
+        f'way["landuse"="grass"]({bounds}););(._;>;);out meta;'
     )
 
 
@@ -322,7 +326,36 @@ def extract(path: Path, config: ProjectConfig, source: SourceRecord) -> Geograph
                     source_timestamp=way.get("timestamp"),
                 )
             )
-    LOG.info("Extracted %d building footprints and %d road segments", len(buildings), len(roads))
+    public_spaces: list[PublicSpace] = []
+    try:
+        spaces = ox.features.features_from_xml(
+            path, tags={"leisure": ["park", "garden", "pitch"], "landuse": "grass"}
+        )
+    except ox._errors.InsufficientResponseError:
+        spaces = None
+    if spaces is not None:
+        for (kind, osm_id), row in spaces.sort_index().iterrows():
+            geometry = row.geometry
+            if geometry.geom_type not in {"Polygon", "MultiPolygon"} or geometry.is_empty:
+                continue
+            if not geometry.is_valid or not geometry.intersects(boundary):
+                continue
+            element = elements[(kind, int(osm_id))]
+            public_spaces.append(
+                PublicSpace(
+                    id=f"osm/{kind}/{osm_id}",
+                    geometry=mapping(geometry),
+                    tags=tags_of(element),
+                    source_version=element.get("version"),
+                    source_timestamp=element.get("timestamp"),
+                )
+            )
+    LOG.info(
+        "Extracted %d footprints, %d road/path segments, %d public spaces",
+        len(buildings),
+        len(roads),
+        len(public_spaces),
+    )
     return GeographicDataset(
         source=source,
         bounds=bounds,
@@ -331,5 +364,7 @@ def extract(path: Path, config: ProjectConfig, source: SourceRecord) -> Geograph
         elevation_datum=config.region.elevation_datum,
         buildings=buildings,
         roads=sorted(roads, key=lambda r: r.id),
+        region_name=config.region.name,
+        public_spaces=public_spaces,
         warnings=warnings,
     )

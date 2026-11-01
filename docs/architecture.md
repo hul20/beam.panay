@@ -1,5 +1,9 @@
 # Initial architecture
 
+For the current Jaro extension, see [Jaro Plaza](jaro_plaza.md). Geographic output now has
+nine layers, including public spaces. Test surfaces resolve footprint conflicts explicitly,
+and overhead roof tags preserve passages instead of becoming solid building masses.
+
 ```mermaid
 flowchart LR
   C[Validated geographic configuration] --> O[Bounded Overpass request / saved OSM XML]

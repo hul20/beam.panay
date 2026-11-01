@@ -1,5 +1,10 @@
 # Iloilo3D
 
+**Current focus: Jaro Plaza.** Use [config/jaro.yaml](config/jaro.yaml) for the 400 m
+plaza area. The [Jaro milestone guide](docs/jaro_plaza.md) contains the new output location,
+reproduction commands, overlap fixes, and known limitations. The older City Proper prototype
+is retained. The user reported that it loads; the new Jaro export awaits in-game testing.
+
 An incremental, geographically referenced reconstruction pipeline for Iloilo City and
 BeamNG.drive. The initial implementation downloads actual OSM footprints and road networks,
 writes inspectable GIS outputs, and exports an **experimental flat-surface test level** from
@@ -19,7 +24,7 @@ that uncertainty; the test exporter records its fallback heights separately.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\iloilo3d.exe --help
-.\.venv\Scripts\iloilo3d.exe fetch-geodata --config config/iloilo.yaml
+.\.venv\Scripts\iloilo3d.exe fetch-geodata --config config/jaro.yaml
 .\.venv\Scripts\python.exe -m pytest
 .\.venv\Scripts\python.exe -m ruff check .
 ```
@@ -37,13 +42,15 @@ For a completely offline demonstration, explicitly label the synthetic fixture:
 Each run prints its processed job directory containing:
 
 - `dataset.json`: original WGS84 geometry, OSM tags, per-property evidence, source license.
-- `geodata.gpkg`: building and road layers in WGS84, projected meters, and local meters.
+- `geodata.gpkg`: building, road/path, and public-space layers in WGS84, projected meters,
+  and local meters (nine layers).
 - `preview.svg`: independent geographic visualization with attribution.
 - `validation.json`: connectivity, geometry, and missing-data diagnostics.
 - `manifest.json`: settings, dependency versions, source checksum, and output checksums.
 
 Output jobs are immutable. The latest successful job is recorded in
-`data/processed/latest.json`. Raw XML is cached; `--refresh` requests a new source snapshot.
+`data/processed/latest.json` for City Proper, or `data/jaro/processed/latest.json` for Jaro.
+Raw XML is cached; `--refresh` requests a new source snapshot.
 Generated data, game assets, credentials, and local environments are excluded from Git.
 
 ## Export a test level
@@ -51,13 +58,13 @@ Generated data, game assets, credentials, and local environments are excluded fr
 Supply the actual shipped `template.zip` path and a new output directory:
 
 ```powershell
-$jobId = (Get-Content data/processed/latest.json | ConvertFrom-Json).job_id
+$jobId = (Get-Content data/jaro/processed/latest.json | ConvertFrom-Json).job_id
 .\.venv\Scripts\iloilo3d.exe export-beamng `
-  --job "data/processed/$jobId" `
+  --job "data/jaro/processed/$jobId" `
   --template-zip "D:/SteamLibrary/steamapps/common/BeamNG.drive/content/levels/template.zip" `
-  --output data/generated/iloilo3d-prototype `
+  --output data/generated/jaro-plaza-next `
   --flat-test-surface
-.\.venv\Scripts\iloilo3d.exe validate-level --directory data/generated/iloilo3d-prototype/levels/iloilo3d
+.\.venv\Scripts\iloilo3d.exe validate-level --directory data/generated/jaro-plaza-next/levels/iloilo3d
 ```
 
 Change the example Steam path to your installation. See [BeamNG export and driving checks](docs/beamng_export.md)

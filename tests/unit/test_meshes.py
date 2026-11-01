@@ -8,7 +8,7 @@ from shapely.geometry import Polygon, box
 from iloilo3d.errors import PipelineError
 from iloilo3d.exporters.beamng import read_scene, write_scene
 from iloilo3d.exporters.collada import NAMESPACE, write_collada
-from iloilo3d.generation.meshes import extrude
+from iloilo3d.generation.meshes import extrude, extrude_test_surface
 
 
 @pytest.mark.parametrize(
@@ -82,3 +82,15 @@ def test_clipping_sliver_precision() -> None:
 def test_repeated_ring_vertices() -> None:
     polygon = Polygon([(0, 0), (10, 0), (10, 0), (10, 10), (0, 10)])
     extrude(polygon, 0, 6).validate()
+
+
+def test_point_touching_hole_surface_repair() -> None:
+    polygon = Polygon(
+        [(0, 0), (5, 0), (10, 0), (10, 10), (0, 10)], holes=[[(5, 0), (4, 3), (6, 3)]]
+    )
+    assert polygon.is_valid
+    with pytest.raises(PipelineError):
+        extrude(polygon, -0.5, 0)
+    for mesh, inset in extrude_test_surface(polygon):
+        mesh.validate()
+        assert inset == 0.002
