@@ -57,6 +57,9 @@ def parser() -> argparse.ArgumentParser:
     )
     export.add_argument("--fallback-height-m", type=float, default=6)
     export.add_argument("--fallback-width-m", type=float, default=6)
+    export.add_argument(
+        "--overrides", type=Path, help="Reviewed YAML road and building corrections"
+    )
     level = commands.add_parser(
         "validate-level", help="Check exported scene references, not game behavior"
     )
@@ -102,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
                     flat_test_surface=args.flat_test_surface,
                     fallback_height_m=args.fallback_height_m,
                     fallback_width_m=args.fallback_width_m,
+                    overrides_path=args.overrides,
                 )
             )
         elif args.command == "validate-level":

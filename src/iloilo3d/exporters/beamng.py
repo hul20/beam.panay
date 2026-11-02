@@ -18,7 +18,9 @@ from shapely.geometry import Polygon, box
 from iloilo3d.errors import PipelineError
 from iloilo3d.exporters.collada import NAMESPACE, write_collada
 from iloilo3d.generation.buildings import building_profile
+from iloilo3d.generation.landmarks import landmark_parts
 from iloilo3d.generation.meshes import Mesh, extrude, extrude_test_surface
+from iloilo3d.generation.overrides import load_overrides
 from iloilo3d.generation.roads import prepare_surfaces
 from iloilo3d.geospatial.coordinates import CoordinateFrame
 from iloilo3d.geospatial.preview import write_png_preview
@@ -66,6 +68,7 @@ def export_prototype(
     flat_test_surface: bool = False,
     fallback_height_m: float = 6,
     fallback_width_m: float = 6,
+    overrides_path: Path | None = None,
 ) -> Path:
     """Write a new unpacked mod under output/levels/iloilo3d; never install into the game."""
     if not flat_test_surface:
@@ -77,6 +80,16 @@ def export_prototype(
     if not validate_outputs(job).valid:
         raise PipelineError("Geographic input failed validation")
     dataset = GeographicDataset.model_validate_json((job / "dataset.json").read_text("utf-8"))
+    overrides = load_overrides(overrides_path)
+    unknown_roads = set(overrides.roads) - {
+        key for road in dataset.roads for key in (road.id, f"osm/way/{road.osm_way_id}")
+    }
+    unknown_buildings = set(overrides.buildings) - {building.id for building in dataset.buildings}
+    if unknown_roads or unknown_buildings:
+        raise PipelineError(
+            f"Unknown correction IDs: roads={sorted(unknown_roads)}, "
+            f"buildings={sorted(unknown_buildings)}"
+        )
     frame = CoordinateFrame(dataset.origin, dataset.projected_crs)
     b = dataset.bounds
     boundary = set_precision(frame.local_geometry(box(b.west, b.south, b.east, b.north)), 0.001)
@@ -86,7 +99,9 @@ def export_prototype(
         "Collision uses low-poly visible meshes; actual wheel contact is unverified.",
         "No textures, detailed facades, LODs, road markings, AI lanes, or photogrammetry.",
     ]
-    layout = prepare_surfaces(dataset, frame, boundary, fallback_width_m, fallback_height_m)
+    layout = prepare_surfaces(
+        dataset, frame, boundary, fallback_width_m, fallback_height_m, overrides
+    )
     road_surface = layout.roads
     road_records = layout.records
     if road_surface.is_empty or not dataset.buildings:
@@ -170,6 +185,8 @@ def export_prototype(
             "iloilo_park": [0.26, 0.40, 0.18, 1],
             "iloilo_path": [0.68, 0.65, 0.57, 1],
             "iloilo_pitch": [0.47, 0.48, 0.46, 1],
+            "iloilo_adobe": [0.58, 0.54, 0.45, 1],
+            "iloilo_roof": [0.40, 0.36, 0.32, 1],
         }
         materials = {
             name: {
@@ -242,30 +259,49 @@ def export_prototype(
                     )
         for building, geometry in zip(dataset.buildings, building_shapes, strict=True):
             profile = building_profile(building, fallback_height_m)
-            height = profile.top
+            correction = overrides.buildings.get(building.id)
+            height = correction.height_m if correction and correction.height_m else profile.top
+            if height <= profile.bottom:
+                raise PipelineError(f"{building.id}: corrected height is below min_height")
             for index, poly in enumerate(polygons(geometry)):
                 center = poly.centroid
                 local = translate(poly, xoff=-center.x, yoff=-center.y)
                 name = building.id.replace("/", "_") + f"_{index}"
-                add_mesh(
-                    name,
-                    extrude(local, profile.bottom, height),
-                    "iloilo_wall",
-                    [center.x, center.y, 0],
-                    {
-                        "source_id": building.id,
-                        "name": building.tags.get("name"),
-                        "building_class": building.tags.get("building"),
-                        "reconstruction_method": "C",
-                        "height_m": height,
-                        "height_status": "mapped" if building.height_m else "estimated",
-                        "open_roof": profile.open_roof,
-                        "min_height_m": profile.bottom,
-                        "min_height_status": profile.bottom_status,
-                        "roof_status": "estimated_flat",
-                        "base_elevation_status": "estimated_test_surface",
-                    },
+                material = (
+                    "iloilo_adobe" if building.tags.get("material") == "adobe" else "iloilo_wall"
                 )
+                landmark = landmark_parts(building.id, local, height)
+                parts = landmark or [("mass", extrude(local, profile.bottom, height), material)]
+                for part_name, mesh, part_material in parts:
+                    add_mesh(
+                        f"{name}_{part_name}",
+                        mesh,
+                        part_material,
+                        [center.x, center.y, 0],
+                        {
+                            "source_id": building.id,
+                            "name": building.tags.get("name"),
+                            "building_class": building.tags.get("building"),
+                            "reconstruction_method": "C",
+                            "height_m": height,
+                            "height_status": (
+                                correction.evidence
+                                if correction and correction.height_m
+                                else "mapped"
+                                if building.height_m
+                                else "estimated"
+                            ),
+                            "footprint_scale": correction.footprint_scale if correction else None,
+                            "geometry_override": correction.model_dump() if correction else None,
+                            "open_roof": profile.open_roof,
+                            "min_height_m": profile.bottom,
+                            "min_height_status": profile.bottom_status,
+                            "roof_status": "estimated_flat",
+                            "landmark_geometry": "estimated_massing" if landmark else None,
+                            "landmark_part": part_name if landmark else None,
+                            "base_elevation_status": "estimated_test_surface",
+                        },
+                    )
         write_scene(mission / "generated" / "items.level.json", scene)
         info = json.loads(template["info"])
         info.update(
@@ -300,6 +336,8 @@ def export_prototype(
             "template_sha256": sha256_file(template_zip),
             "template_members": required,
             "flat_test_surface": True,
+            "overrides": overrides.model_dump(mode="json"),
+            "overrides_sha256": sha256_file(overrides_path) if overrides_path else None,
             "notes": notes,
             "assets": assets,
             "roads": road_records,

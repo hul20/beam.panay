@@ -1,0 +1,12 @@
+# Reviewed visual estimates for the Jaro Plaza prototype. These are not surveys.
+# Keys are persistent OSM feature IDs. Raw OSM data stays unchanged.
+buildings:
+  osm/way/222460850:
+    height_m: 15.0
+    evidence: visual_estimate
+    reason: "Cathedral mass should rise above the generic 6 m fallback."
+  osm/way/485045671:
+    height_m: 5.5
+    evidence: visual_estimate
+    reason: "Open plaza pavilion massing needs a lower roof than generic buildings."
+roads: {}

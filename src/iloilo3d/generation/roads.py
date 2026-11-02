@@ -7,10 +7,12 @@ Centerline conflicts remain unresolved and are reported for manual correction.
 from dataclasses import dataclass
 
 from shapely import set_precision, union_all
+from shapely.affinity import scale
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from iloilo3d.generation.buildings import building_profile
+from iloilo3d.generation.overrides import GeometryOverrides
 from iloilo3d.geospatial.coordinates import CoordinateFrame
 from iloilo3d.models import GeographicDataset
 
@@ -37,8 +39,21 @@ def prepare_surfaces(
     boundary: BaseGeometry,
     fallback_width_m: float,
     fallback_height_m: float = 6,
+    overrides: GeometryOverrides | None = None,
 ) -> SurfaceLayout:
-    buildings = [frame.local_geometry(shape(b.footprint)) for b in dataset.buildings]
+    overrides = overrides or GeometryOverrides()
+    buildings = []
+    for building in dataset.buildings:
+        geometry = frame.local_geometry(shape(building.footprint))
+        correction = overrides.buildings.get(building.id)
+        if correction and correction.footprint_scale:
+            geometry = scale(
+                geometry,
+                xfact=correction.footprint_scale,
+                yfact=correction.footprint_scale,
+                origin="centroid",
+            )
+        buildings.append(geometry)
     obstructing = [
         (building, geometry)
         for building, geometry in zip(dataset.buildings, buildings, strict=True)
@@ -61,7 +76,23 @@ def prepare_surfaces(
         if walking and road.tags.get("access") in {"no", "private"}:
             continue
         centerline = frame.local_geometry(shape(road.centerline)).intersection(boundary)
-        width = road.width_m or (1.8 if walking else fallback_width_m)
+        correction = overrides.roads.get(road.id) or overrides.roads.get(
+            f"osm/way/{road.osm_way_id}"
+        )
+        if correction:
+            width, width_status = correction.width_m, correction.evidence
+        elif road.width_m:
+            width, width_status = road.width_m, "mapped"
+        elif walking:
+            width, width_status = 1.8, "estimated_path_default"
+        elif road.lanes:
+            width = max(4.0, road.lanes * 3.0)
+            width_status = "estimated_from_mapped_lanes"
+        else:
+            minimum = {"primary": 8.0, "secondary": 7.5, "tertiary": 6.5}.get(
+                road.tags.get("highway", ""), fallback_width_m
+            )
+            width, width_status = max(fallback_width_m, minimum), "estimated_from_class"
         original = set_precision(
             centerline.buffer(width / 2, cap_style="flat").intersection(boundary), GRID_M
         )
@@ -80,7 +111,10 @@ def prepare_surfaces(
                 "name": road.tags.get("name"),
                 "kind": "path" if walking else "road",
                 "width_m": width,
-                "width_status": "mapped" if road.width_m else "estimated",
+                "width_status": width_status,
+                "mapped_width_m": road.width_m,
+                "mapped_lanes": road.lanes,
+                "width_override": correction.model_dump() if correction else None,
                 "building_clearance_m": CLEARANCE_M,
                 "removed_area_m2": round(removed, 6),
                 "surface_correction": "trimmed_around_buildings" if removed > 1e-6 else "none",

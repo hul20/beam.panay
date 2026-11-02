@@ -22,6 +22,15 @@ selection anchor, not a surveyed control point. See [configuration](../config/ja
   Per-segment corrections and any unresolved centerline conflicts are reported.
 - Public surfaces are partitioned so road, path, park, and pitch polygons do not overlap.
   The nine-layer GeoPackage includes public spaces in all three coordinate frames.
+- Untagged road widths now use mapped lane counts (3 m per lane, minimum 4 m) or
+  class-based minimum estimates (primary 8 m, secondary 7.5 m, tertiary 6.5 m).
+  Explicit OSM widths take priority. The export report records each width's basis.
+- [Jaro corrections](../config/jaro_overrides.yaml) sets visually estimated heights for the
+  cathedral (15 m) and pavilion (5.5 m). Persistent IDs, reasons, evidence type, and a
+  configuration checksum appear in the report. The original OSM dataset stays unchanged.
+- The mapped belfry footprint and 29 m OSM height now generate three estimated tiers in an
+  adobe-colored material. The pavilion generates a platform, posts, and overhead roof.
+  Their architectural proportions and post positions have not been surveyed.
 
 Files changed include [OSM acquisition](../src/iloilo3d/providers/osm.py),
 [building profiles](../src/iloilo3d/generation/buildings.py),
@@ -32,9 +41,9 @@ Files changed include [OSM acquisition](../src/iloilo3d/providers/osm.py),
 
 ## Verified results
 
-- **47 offline tests pass**; Ruff lint and formatting checks pass.
+- **51 offline tests pass**; Ruff lint and formatting checks pass.
 - Live OSM acquisition and geographic output succeeded, following an initial HTTP 502.
-- Export: **263 meshes, 25,800 triangles, 6 materials, 271 scene objects**.
+- Latest export: **272 meshes, 27,340 triangles, 8 materials, 280 scene objects**.
 - Generated road surfaces intersect ground-obstructing building polygons by **0 m²**.
 - **20 segments** had surface widths trimmed; **0 unresolved centerline conflicts** remain
   after correctly distinguishing overhead roofs from enclosed buildings.
@@ -50,10 +59,10 @@ surface repair, not a modification of source footprints; the small seams need dr
 
 ## Outputs and installation
 
-- [Generated level](../data/generated/jaro-plaza-v2/levels/iloilo3d/)
-- [Preview](../data/generated/jaro-plaza-v2/levels/iloilo3d/preview.png)
-- [Export report](../data/generated/jaro-plaza-v2/export-report.json)
-- [Blender scene](../data/generated/jaro-plaza-v2/authoring/jaro-plaza.blend)
+- [Generated level](../data/generated/jaro-plaza-v3/levels/iloilo3d/)
+- [Preview](../data/generated/jaro-plaza-v3/levels/iloilo3d/preview.png)
+- [Export report](../data/generated/jaro-plaza-v3/export-report.json)
+- [Blender scene](../data/generated/jaro-plaza-v3/authoring/jaro-plaza.blend)
 - [Geographic job](../data/jaro/processed/99d27ed9ec10a6183511/)
 
 The level ID remains `iloilo3d`; its Freeroam title is **Iloilo3D — Jaro Plaza**.
@@ -73,7 +82,8 @@ $jobId = (Get-Content data/jaro/processed/latest.json | ConvertFrom-Json).job_id
 .\.venv\Scripts\python.exe -m iloilo3d export-beamng `
   --job "data/jaro/processed/$jobId" `
   --template-zip "D:/SteamLibrary/steamapps/common/BeamNG.drive/content/levels/template.zip" `
-  --output data/generated/jaro-plaza-next --flat-test-surface
+  --output data/generated/jaro-plaza-next --flat-test-surface `
+  --overrides config/jaro_overrides.yaml
 .\.venv\Scripts\python.exe -m iloilo3d validate-level --directory data/generated/jaro-plaza-next/levels/iloilo3d
 .\.venv\Scripts\python.exe -m pytest
 ```
@@ -92,13 +102,14 @@ Use a new output directory each time. To create the editable scene:
 This is a geographically placed **Jaro base**, not a finished recognizable architectural
 reconstruction. Ground and paths remain flat; roofs, facades, park surface materials,
 steps, trees, statues, fences, columns, and furniture are not surveyed or reconstructed.
-The pavilion is still a simple mass. No photo-based reconstruction or Google imagery was used.
+The pavilion and belfry now have estimated massing, but no photo-based reconstruction or
+Google imagery was used. The cathedral height is a visual estimate and its roof remains flat.
 Trimming a width prevents a mesh intersection but does not prove a street is wide enough
 for every vehicle. Generated assets and data are ignored by Git.
 
-The user reported that the earlier City Proper map works, with flat ground and overlaps.
-That is user-reported load feedback, not a complete physics test or evidence about this
-new Jaro export. **Next step:** test Jaro's perimeter streets and internal paths in-game,
+The user reported that the Jaro map looks good overall but some streets and buildings
+appear undersized. That is useful visual feedback, not a complete physics test or evidence
+about this new export. **Next step:** test the revised street widths and landmarks in-game,
 then use licensed reference photographs and measurements for the belfry, pavilion, cathedral,
 plaza steps, and furnishings. Preserve horizontal source geometry while refining details.
 
