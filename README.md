@@ -10,9 +10,10 @@ BeamNG.drive. The initial implementation downloads actual OSM footprints and roa
 writes inspectable GIS outputs, and exports an **experimental flat-surface test level** from
 the installed game's Starter Level template.
 
-**Current status:** Phase 0 and the initial Phase 1 extraction workflow are implemented and
-tested. Phase 2 has generated assets and a template-derived level, but **in-game validation
-is pending**. Building masses are Level C estimates, not photographed digital twins.
+**Current status:** Geographic extraction, a template-derived Jaro prototype, and an initial
+rights-cleared image intake are implemented. The latest export uses an explicit 1.1 game-only
+scale in response to visual feedback; **in-game validation is pending**. Building masses
+remain Level C estimates, not photographed digital twins.
 
 The first live run retrieved **118 building footprints and 41 road segments** in the configured
 roughly 250 m area. All 118 buildings lacked a parseable mapped height. Extraction preserves
@@ -63,7 +64,7 @@ $jobId = (Get-Content data/jaro/processed/latest.json | ConvertFrom-Json).job_id
   --job "data/jaro/processed/$jobId" `
   --template-zip "D:/SteamLibrary/steamapps/common/BeamNG.drive/content/levels/template.zip" `
   --output data/generated/jaro-plaza-next `
-  --flat-test-surface
+  --flat-test-surface --overrides config/jaro_overrides.yaml --game-scale 1.1
 .\.venv\Scripts\iloilo3d.exe validate-level --directory data/generated/jaro-plaza-next/levels/iloilo3d
 ```
 
@@ -80,6 +81,8 @@ launch the game. Automated validation does not prove physics, friction, textures
 | `validate --directory JOB` | Check geographic output checksums and geometry |
 | `export-beamng` | Generate a template-based test level, meshes, materials, provenance, and authoring data |
 | `validate-level --directory LEVEL` | Check scene objects, spawn, paths, mesh units, and material bindings |
+| `import-images` | Import explicitly rights-cleared local photos with metadata and checksums |
+| `streetview-reference` | Official Google metadata lookup and viewing link only |
 
 Every command has `--help`. Logs are JSON lines on stderr; results go to stdout.
 The other commands in the project specification are future work, not placeholder successes.
@@ -90,17 +93,18 @@ The other commands in the project specification are future work, not placeholder
   Named-place geocoding, arbitrary polygons, and circular regions are not implemented yet.
 - Road connectivity follows shared OSM node identifiers; grade-separated geometric crossings
   are not joined. Routing restrictions, turn restrictions, and lane-level modeling are pending.
-- The exporter uses real horizontal locations on an explicitly artificial flat test pad.
+- The exporter uses source-derived horizontal locations on an artificial flat test pad.
+  `--game-scale 1.1` enlarges every exported dimension uniformly and is not exact geography.
   Elevated roads/tunnels are skipped; no DEM or vertical datum has been inferred.
 - Courtyards and irregular footprints are supported. Building height/floor tags are retained;
   fallback height, roof, width, and base elevation estimates appear in the export report.
-- No detailed facades, licensed photo reconstruction, privacy processing, or Google integration
-  is implemented yet. **No Google imagery is downloaded or used.**
+- Photo intake and Google reference metadata are available; detailed facades, photo
+  reconstruction, and privacy processing are pending. **No Google imagery is downloaded or used.**
 - No FPS measurement, performance certification, LODs, chunk rebuilding, or city-wide support yet.
 
 Further reading: [Windows installation](docs/installation.md), [architecture](docs/architecture.md),
 [data sources and licensing](docs/data_sources.md), [reconstruction](docs/reconstruction.md),
-[verification record](docs/verification.md).
+[image intake](docs/imagery.md), [verification record](docs/verification.md).
 
 The source code uses the [MIT license](LICENSE). Geographic data and BeamNG template content
 retain their own licenses and are not relicensed by this repository.

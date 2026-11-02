@@ -69,12 +69,15 @@ def export_prototype(
     fallback_height_m: float = 6,
     fallback_width_m: float = 6,
     overrides_path: Path | None = None,
+    game_scale: float = 1.0,
 ) -> Path:
     """Write a new unpacked mod under output/levels/iloilo3d; never install into the game."""
     if not flat_test_surface:
         raise PipelineError("No measured terrain available; explicitly select --flat-test-surface")
     if not 1 <= fallback_height_m <= 100 or not 2 <= fallback_width_m <= 30:
         raise PipelineError("Prototype fallback height must be 1–100 m and width 2–30 m")
+    if not math.isfinite(game_scale) or not 0.8 <= game_scale <= 1.3:
+        raise PipelineError("Game scale must be finite and between 0.8 and 1.3")
     if output.exists():
         raise PipelineError("Export directory already exists; select a new output directory")
     if not validate_outputs(job).valid:
@@ -99,11 +102,18 @@ def export_prototype(
         "Collision uses low-poly visible meshes; actual wheel contact is unverified.",
         "No textures, detailed facades, LODs, road markings, AI lanes, or photogrammetry.",
     ]
+    if game_scale != 1:
+        notes.append(
+            f"Game-only uniform scale {game_scale:g}; exported coordinates and sizes "
+            "are no longer true meters. Source geodata remains unchanged."
+        )
     layout = prepare_surfaces(
         dataset, frame, boundary, fallback_width_m, fallback_height_m, overrides
     )
     road_surface = layout.roads
     road_records = layout.records
+    for road_record in road_records:
+        road_record["game_width_m"] = round(road_record["width_m"] * game_scale, 3)
     if road_surface.is_empty or not dataset.buildings:
         raise PipelineError("Prototype requires at least one mapped building and drivable road")
     if layout.overlap_area_m2 > 1e-6:
@@ -173,7 +183,7 @@ def export_prototype(
         spawn_object = spawns[0]
         spawn_object.update(
             name="spawn_default",
-            position=[spawn.x, spawn.y, 1.5],
+            position=[spawn.x * game_scale, spawn.y * game_scale, 1.5 * game_scale],
             rotationMatrix=IDENTITY,
             autoplaceOnSpawn="0",
         )
@@ -207,6 +217,14 @@ def export_prototype(
         def add_mesh(
             name: str, mesh: Mesh, material: str, position: list[float], source: dict
         ) -> None:
+            if game_scale != 1:
+                mesh = Mesh(
+                    vertices=[
+                        tuple(value * game_scale for value in point) for point in mesh.vertices
+                    ],
+                    triangles=mesh.triangles,
+                )
+                position = [value * game_scale for value in position]
             relative = f"art/shapes/{name}.dae"
             write_collada(mesh, level / relative, material)
             scene.append(
@@ -284,6 +302,7 @@ def export_prototype(
                             "building_class": building.tags.get("building"),
                             "reconstruction_method": "C",
                             "height_m": height,
+                            "game_height_m": round(height * game_scale, 3),
                             "height_status": (
                                 correction.evidence
                                 if correction and correction.height_m
@@ -323,7 +342,7 @@ def export_prototype(
         if dataset.source.synthetic:
             info["title"] = "Iloilo3D — SYNTHETIC test fixture"
             info["description"] = "Synthetic geometry for tests; not real Iloilo geography."
-        info["size"] = [round(xmax - xmin), round(ymax - ymin)]
+        info["size"] = [round((xmax - xmin) * game_scale), round((ymax - ymin) * game_scale)]
         write_json(level / "info.json", info)
         write_png_preview(dataset, level / "preview.png")
         write_json(staging / "authoring" / "meshes.json", {"meshes": intermediate})
@@ -336,6 +355,7 @@ def export_prototype(
             "template_sha256": sha256_file(template_zip),
             "template_members": required,
             "flat_test_surface": True,
+            "game_scale": game_scale,
             "overrides": overrides.model_dump(mode="json"),
             "overrides_sha256": sha256_file(overrides_path) if overrides_path else None,
             "notes": notes,

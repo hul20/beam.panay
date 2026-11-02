@@ -17,6 +17,8 @@ from iloilo3d.errors import PipelineError
 from iloilo3d.exporters.beamng import export_prototype, validate_level
 from iloilo3d.logging import configure_logging
 from iloilo3d.pipeline import fetch_geodata, validate_outputs
+from iloilo3d.providers.streetview import lookup_reference
+from iloilo3d.providers.user_photos import ImageManifest, import_images
 from iloilo3d.storage.files import atomic_bytes
 
 
@@ -58,8 +60,25 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("--fallback-height-m", type=float, default=6)
     export.add_argument("--fallback-width-m", type=float, default=6)
     export.add_argument(
+        "--game-scale",
+        type=float,
+        default=1.0,
+        help="Uniform game-only size factor (0.8–1.3); 1.0 preserves real-world meters",
+    )
+    export.add_argument(
         "--overrides", type=Path, help="Reviewed YAML road and building corrections"
     )
+    images = commands.add_parser(
+        "import-images", help="Import rights-cleared local photos with camera provenance"
+    )
+    images.add_argument("--manifest", type=Path, required=True, help="YAML photo rights manifest")
+    images.add_argument("--job", type=Path, required=True, help="Validated geographic job")
+    images.add_argument("--output", type=Path, required=True, help="New image dataset directory")
+    streetview = commands.add_parser(
+        "streetview-reference", help="One official metadata lookup and Google Maps display link"
+    )
+    streetview.add_argument("--latitude", type=float, required=True)
+    streetview.add_argument("--longitude", type=float, required=True)
     level = commands.add_parser(
         "validate-level", help="Check exported scene references, not game behavior"
     )
@@ -106,8 +125,16 @@ def main(argv: list[str] | None = None) -> int:
                     fallback_height_m=args.fallback_height_m,
                     fallback_width_m=args.fallback_width_m,
                     overrides_path=args.overrides,
+                    game_scale=args.game_scale,
                 )
             )
+        elif args.command == "import-images":
+            manifest = ImageManifest.model_validate(
+                yaml.safe_load(args.manifest.read_text("utf-8"))
+            )
+            print(import_images(manifest, args.job, args.output, args.manifest))
+        elif args.command == "streetview-reference":
+            print(lookup_reference(args.latitude, args.longitude).model_dump_json(indent=2))
         elif args.command == "validate-level":
             print(json.dumps(validate_level(args.directory), indent=2))
     except (

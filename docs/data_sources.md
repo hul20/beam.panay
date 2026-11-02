@@ -30,13 +30,17 @@ spawn fields, environment, and metadata. The template's hash and selected member
 recorded. Game-derived files remain subject to BeamNG's terms. They are excluded from
 Git, and the exporter does not publish or install a mod automatically.
 
-## Imagery: not implemented in this milestone
+## Imagery: initial rights-cleared intake
 
-No imagery provider or computer-vision stage is currently enabled. A future normalized
-camera/image contract must include source identity, documented rights, permitted uses,
-geographic scope, retention/redistribution restrictions, and per-image provenance.
+Local user and licensed third-party photographs can be imported through the explicit
+[photo intake](./imagery.md). Each record carries source identity, creator, rights statement,
+license ID, building associations, camera metadata where present, and checksums. The
+rights statement must specify reconstruction permission; geographic scope and retention
+or redistribution limits must be reviewed before supplying third-party photos. No photo
+reconstruction or computer-vision stage is enabled yet.
 
-Ordinary Google Street View access is reference/display only. No screenshot capture,
+Ordinary Google Street View access is reference/display only. The CLI can perform one
+official metadata lookup and provide a Google Maps viewing link. No screenshot capture,
 tile extraction, panorama download, geometry inference, segmentation, texture generation,
 or photogrammetry from ordinary Google API imagery is part of this system. The reserved
 environment variable in `.env.example` does not confer reconstruction rights.

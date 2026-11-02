@@ -41,7 +41,7 @@ Files changed include [OSM acquisition](../src/iloilo3d/providers/osm.py),
 
 ## Verified results
 
-- **51 offline tests pass**; Ruff lint and formatting checks pass.
+- **54 offline tests pass**; Ruff lint and formatting checks pass.
 - Live OSM acquisition and geographic output succeeded, following an initial HTTP 502.
 - Latest export: **272 meshes, 27,340 triangles, 8 materials, 280 scene objects**.
 - Generated road surfaces intersect ground-obstructing building polygons by **0 m²**.
@@ -59,10 +59,10 @@ surface repair, not a modification of source footprints; the small seams need dr
 
 ## Outputs and installation
 
-- [Generated level](../data/generated/jaro-plaza-v3/levels/iloilo3d/)
-- [Preview](../data/generated/jaro-plaza-v3/levels/iloilo3d/preview.png)
-- [Export report](../data/generated/jaro-plaza-v3/export-report.json)
-- [Blender scene](../data/generated/jaro-plaza-v3/authoring/jaro-plaza.blend)
+- [Generated level](../data/generated/jaro-plaza-v4/levels/iloilo3d/)
+- [Preview](../data/generated/jaro-plaza-v4/levels/iloilo3d/preview.png)
+- [Export report](../data/generated/jaro-plaza-v4/export-report.json)
+- [Blender scene](../data/generated/jaro-plaza-v4/authoring/jaro-plaza.blend)
 - [Geographic job](../data/jaro/processed/99d27ed9ec10a6183511/)
 
 The level ID remains `iloilo3d`; its Freeroam title is **Iloilo3D — Jaro Plaza**.
@@ -83,7 +83,7 @@ $jobId = (Get-Content data/jaro/processed/latest.json | ConvertFrom-Json).job_id
   --job "data/jaro/processed/$jobId" `
   --template-zip "D:/SteamLibrary/steamapps/common/BeamNG.drive/content/levels/template.zip" `
   --output data/generated/jaro-plaza-next --flat-test-surface `
-  --overrides config/jaro_overrides.yaml
+  --overrides config/jaro_overrides.yaml --game-scale 1.1
 .\.venv\Scripts\python.exe -m iloilo3d validate-level --directory data/generated/jaro-plaza-next/levels/iloilo3d
 .\.venv\Scripts\python.exe -m pytest
 ```
@@ -106,6 +106,10 @@ The pavilion and belfry now have estimated massing, but no photo-based reconstru
 Google imagery was used. The cathedral height is a visual estimate and its roof remains flat.
 Trimming a width prevents a mesh intersection but does not prove a street is wide enough
 for every vehicle. Generated assets and data are ignored by Git.
+The v4 export uniformly enlarges meshes, positions, widths, heights, and spawn by 10%.
+This is a labeled game-scale adjustment and therefore does not preserve exact 1:1 meters;
+the OSM dataset and local coordinate frame remain unchanged. The [image intake](./imagery.md)
+is ready for licensed photos but none have been supplied for this Jaro export.
 
 The user reported that the Jaro map looks good overall but some streets and buildings
 appear undersized. That is useful visual feedback, not a complete physics test or evidence

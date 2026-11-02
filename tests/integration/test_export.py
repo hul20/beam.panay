@@ -63,6 +63,31 @@ def test_export_template_meshes_and_provenance(config, osm_file, template, tmp_p
         validate_level(level)
 
 
+def test_game_scale_changes_entire_export_and_keeps_source_job(
+    config, osm_file, template, tmp_path
+):
+    job = fetch_geodata(config, osm_file=osm_file, synthetic=True)
+    source_hash = (job / "dataset.json").read_bytes()
+    output = tmp_path / "scaled"
+    level = export_prototype(job, template, output, flat_test_surface=True, game_scale=1.1)
+    report = json.loads((output / "export-report.json").read_text("utf-8"))
+    assert report["game_scale"] == 1.1
+    assert report["roads"][0]["game_width_m"] == pytest.approx(report["roads"][0]["width_m"] * 1.1)
+    assert json.loads((level / "info.json").read_text("utf-8"))["size"] == [276, 276]
+    unscaled = export_prototype(job, template, tmp_path / "unscaled", flat_test_surface=True)
+    scaled_meshes = json.loads((output / "authoring/meshes.json").read_text("utf-8"))["meshes"]
+    unscaled_meshes = json.loads(
+        (unscaled.parents[1] / "authoring/meshes.json").read_text("utf-8")
+    )["meshes"]
+    assert scaled_meshes[0]["vertices"][0] == pytest.approx(
+        [coordinate * 1.1 for coordinate in unscaled_meshes[0]["vertices"][0]]
+    )
+    assert validate_level(level)["valid"]
+    assert (job / "dataset.json").read_bytes() == source_hash
+    with pytest.raises(PipelineError, match="Game scale"):
+        export_prototype(job, template, tmp_path / "bad", flat_test_surface=True, game_scale=2)
+
+
 @pytest.mark.parametrize("corruption", ["material", "path", "spawn"])
 def test_level_rejects_broken_references(config, osm_file, template, tmp_path, corruption) -> None:
     job = fetch_geodata(config, osm_file=osm_file, synthetic=True)
